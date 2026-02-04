@@ -1,7 +1,6 @@
 #ifndef INCLUDE_LIBK_TYPES_H_
 #define INCLUDE_LIBK_TYPES_H_
 
-#include <signal.h>
 typedef __UINT8_TYPE__  u8;
 typedef __UINT16_TYPE__ u16;
 typedef __UINT32_TYPE__ u32;

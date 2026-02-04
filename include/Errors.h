@@ -2,8 +2,13 @@
 #define INCLUDE_LIBK_ERRORS_H_
 
 typedef enum {
-    UNCATEGORIZED_ERROR = -1,
-    NO_ERROR = 0,
+    UNCATEGORIZED_ERR = -1,
+    NO_ERR = 0,
+
+    // General Errors
+    ALLOC_ERR,
+    NULLPTR_ERR,
+    OUT_OF_BOUNDS_ERR,
 
     // FileControl.h
     OPEN_FILE_ERR,
@@ -12,7 +17,7 @@ typedef enum {
     FILE_TOO_BIG_ERR
 } ErrCode;
 
-#define RETURN(res)    \
+#define RETURN(res)   \
     do {              \
         result = res; \
         goto defer;   \
