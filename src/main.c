@@ -1,16 +1,20 @@
-#include "StringBuilder.h"
+#include "Lexer.h"
+#include "String.h"
+#include <assert.h>
 #include <stdio.h>
 
-int printString(String *s) { return printf("%.*s\n", (int)s->len, s->data); }
+int printString(String *s) { return printf("%.*s\n", (int)s->len, s->arr); }
 
-int main(void) {
-    StringBuilder sb = {0};
-    ErrCode err;
-    if ((err = SB_joinEntireFile("./src/main.c", &sb)) != NO_ERROR) {
-        printf("error! %d\n", err);
-        return -1;
+int main(int argc, char *argv[]) {
+    assert(argc == 2 && "Usage: lexer <source-file>");
+    TokensList tokens = {0};
+    ErrCode err = scanFile(&tokens, argv[1]);
+    printf("err = %d\n", err);
+    for (usize i = 0; i < tokens.len; i++) {
+        Token *token = &tokens.arr[i];
+        printToken(*token);
     }
-    String s = SB_moveToString(&sb);
-    printString(&s);
-    return 0;
+
+    freeTokensList(&tokens);
+    return err;
 }

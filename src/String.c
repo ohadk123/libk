@@ -59,8 +59,9 @@ ErrCode joinEntireFile(String *dest, cstr path) {
     if (fseek(fp, 0, SEEK_END) != 0) RETURN(SEEK_FILE_ERR);
     i32 end = ftell(fp);
     if (end == -1) RETURN(SEEK_FILE_ERR);
-    if (end >= start) RETURN(SEEK_FILE_ERR);
+    if (end < start) RETURN(SEEK_FILE_ERR);
     usize count = end - start;
+    if (fseek(fp, 0, SEEK_SET) != 0) RETURN(SEEK_FILE_ERR);
 
     if ((dest->arr = realloc(dest->arr, dest->cap + count)) == NULL) RETURN(ALLOC_ERR);
     dest->cap += count;
