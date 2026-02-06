@@ -1,129 +1,30 @@
 #include "Lexer.h"
 #include "String.h"
 #include <assert.h>
-#include <stdio.h>
+#include <ctype.h>
 #include <string.h>
 
-/**********************************************************************************************************************
- * Not lexer specific helper functions
- *********************************************************************************************************************/
-
-Bool isIdentChar(u8 c) {
-    return (('a' <= c && c <= 'z')
-            || ('A' <= c && c <= 'Z')
-            || (c == '_'));
+static inline Bool isHex(u8 c) {
+    return ('0' <= c && c <= '9') || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F');
 }
 
-Bool isDigit(u8 c) {
-    return '0' <= c && c <= '9';
+static inline u8 hexToVal(u8 c) {
+    if ('0' <= c && c <= '9') return c - '0' + 0x0;
+    if ('a' <= c && c <= 'f') return c - 'a' + 0xa;
+    if ('A' <= c && c <= 'F') return c - 'A' + 0xA;
+
+    assert (FALSE && "Called hexToVal with non hex character!");
 }
 
-u8 convertEscapeChar(String *source, usize *place) {
-    if (place == NULL || *place >= source->len-1 || source->arr[*place] != '\\') return -1;
-
-    (*place)++;
-    switch (*place) {
-        case 'n':  return '\n';
-        case 't':  return '\t';
-        case 'v':  return '\v';
-        case 'b':  return '\b';
-        case 'r':  return '\r';
-        case 'f':  return '\f';
-        case 'a':  return '\a';
-        case '\\': return '\\';
-        case '?':  return '\?';
-        case '\'': return '\'';
-        case '\"': return '\"';
-        case 'x':
-            assert(0 && "Hex escape characters not implemented yet");
-        case '0':
-            assert(0 && "Octal escape characters not implemented yet");
-    }
-    return -1;
+static inline Bool isOct(u8 c) {
+    return '0' <= c && c <= '7';
 }
 
-/**********************************************************************************************************************
- * Token functions
- *********************************************************************************************************************/
+static inline u8 octToVal(u8 c) {
+    if ('0' <= c && c <= '7') return c - '0';
 
-#define X(type) [type] = #type,
-cstr tokenTypesStrings[] = { TOKEN_LIST };
-#undef X
-
-Token makeUnknown(u8 c, usize line, usize col) {
-    Token token = {0};
-    token.type = TOK_UNKNOWN;
-    token.as.unknown = c;
-    token.line = line;
-    token.col = col;
-    return token;
+    assert (FALSE && "Called octToVal with non octal character!");
 }
-
-Token makeToken(TokenType type, usize line, usize col) {
-    Token token = {0};
-    token.type = type;
-    token.line = line;
-    token.col = col;
-    return token;
-}
-
-Token makeIdentifierToken(String ident, usize line, usize col) {
-    Token token = {0};
-    token.type = TOK_IDENTIFIER;
-    token.as.identifier = ident;
-    token.line = line;
-    token.col = col;
-    return token;
-}
-
-Token makeStringLiteralToken(String strLit, usize line, usize col) {
-    Token token = {0};
-    token.type = TOK_STRING_LITERAL;
-    token.as.stringLiteral = strLit;
-    token.line = line;
-    token.col = col;
-    return token;
-}
-
-Token makeIntegerLiteralToken(u64 value, usize line, usize col) {
-    Token token = {0};
-    token.type = TOK_INTEGER_LITERAL;
-    token.as.integerLiteral = value;
-    token.line = line;
-    token.col = col;
-    return token;
-}
-
-Token makeFloatLiteralToken(f64 value, usize line, usize col) {
-    Token token = {0};
-    token.type = TOK_FLOAT_LITERAL;
-    token.as.floatLiteral = value;
-    token.line = line;
-    token.col = col;
-    return token;
-}
-
-Token makeCharLiteralToken(u8 value, usize line, usize col) {
-    Token token = {0};
-    token.type = TOK_CHAR_LITERAL;
-    token.as.charLiteral = value;
-    token.line = line;
-    token.col = col;
-    return token;
-}
-
-Token makeErrorToken(String errorMsg, usize line, usize col) {
-    Token token = {0};
-    token.type = TOK_ERROR;
-    token.as.error = errorMsg;
-    token.line = line;
-    token.col = col;
-    return token;
-}
-
-/**********************************************************************************************************************
- * Lexer functions
- *********************************************************************************************************************/
 
 typedef struct {
     String input;
@@ -131,11 +32,17 @@ typedef struct {
     usize col;
     usize index;
     TokensList *tokens;
+    Bool hasErros;
 } Lexer;
 
-static void addSimpleToken(Lexer *l, TokenType type) {
-    Token token = makeToken(type, l->line, l->col);
+static inline void addToken(Lexer *l, Token token) {
     LIST_appendSingle(l->tokens, token);
+    if (token.type == TOK_ERROR) l->hasErros = TRUE;
+}
+
+static void addSimpleToken(Lexer *l, TokenType type) {
+    Token t = makeSimple(type, l->line, l->col);
+    addToken(l, t);
 }
 
 // Check if we've reached the end of the input
@@ -171,6 +78,138 @@ static u8 peekAhead(Lexer *l, usize n) {
     return l->input.arr[l->index + n];
 }
 
+static void makeIdentifier(Lexer *l) {
+    usize start = l->index - 1;
+    usize col = l->col;
+
+    while (isalnum(peek(l)) || peek(l) == '_') advance(l);
+    usize end = l->index;
+
+    String identString = {0};
+    ErrCode err;
+    if ((err = joinStringSlice(&identString, &l->input, start, end)) != NO_ERR) exit(err);
+
+    Token identToken = makeIdentifierToken(identString,l->line, col);
+    addToken(l, identToken);
+}
+
+static void makeNumber(Lexer *l) {
+    Bool isFloat = FALSE;
+    usize start = l->index - 1;
+    usize col = l->col;
+
+    while (isdigit(peek(l)) || (peek(l) == '.' && !isFloat)) {
+        if (l->input.arr[l->index-1] == '.') isFloat = TRUE;
+        advance(l);
+    }
+    usize end = l->index;
+
+    String numberString = {0};
+    ErrCode err;
+    if ((err = joinStringSlice(&numberString, &l->input, start, end)) != NO_ERR) exit(err);
+    joinByte(&numberString, '\0');
+
+    if (isFloat) {
+        f64 fval = atof((cstr) numberString.arr);
+        Token floatToken = makeFloatLiteralToken(fval, l->line, col);
+        addToken(l, floatToken);
+    } else {
+        u64 ival = atoll((cstr) numberString.arr);
+        Token floatToken = makeIntegerLiteralToken(ival, l->line, col);
+        addToken(l, floatToken);
+    }
+}
+
+static u8 consumeEscapeChar(Lexer *l) {
+    assert(l->input.arr[l->index-1] == '\\' && "Called consumeEscapeChar without being on '\\'");
+    u64 val = 0;
+
+    u8 c = advance(l);
+    switch (c) {
+        case 'n':  val = '\n'; break;
+        case 't':  val = '\t'; break;
+        case 'v':  val = '\v'; break;
+        case 'b':  val = '\b'; break;
+        case 'r':  val = '\r'; break;
+        case 'f':  val = '\f'; break;
+        case 'a':  val = '\a'; break;
+        case '\\': val = '\\'; break;
+        case '?':  val = '\?'; break;
+        case '\'': val = '\''; break;
+        case '\"': val = '\"'; break;
+        case 'x':
+            while (isHex(peek(l))) {
+                u8 c = advance(l);
+                val *= 16;
+                val += hexToVal(c);
+            }
+            break;
+        case '0':
+            while (isOct(peek(l))) {
+                u8 c = advance(l);
+                val *= 8;
+                val += octToVal(c);
+            }
+            break;
+    }
+
+    if (val > U8_MAX) {
+        String errString = {0};
+        joinCString(&errString, "Escape squence out of u8 range");
+        Token token = makeErrorToken(errString, l->line, l->col);
+        addToken(l, token);
+        return -1;
+    }
+    return (u8)val;
+}
+
+static void makeString(Lexer *l) {
+    String stringString = {0};
+    usize col = l->col;
+    Token token = {0};
+
+    while (!isAtEnd(l) && peek(l) != '\n') {
+        if (peek(l) == '\"') {
+            advance(l);
+            goto terminated;
+        }
+
+        u8 c = advance(l);
+        if (c == '\\') c = consumeEscapeChar(l);
+        joinByte(&stringString, c);
+    }
+    String errString = {0};
+    joinCString(&errString, "Unterminated String Literal!");
+    token = makeErrorToken(errString, l->line, col);
+    addToken(l, token);
+    return;
+
+terminated:
+    token = makeStringLiteralToken(stringString, l->line, col);
+    addToken(l, token);
+}
+
+static void makeChar(Lexer *l) {
+    usize col = l->col;
+    u8 c = advance(l);
+
+    if (c == '\\') c = consumeEscapeChar(l);
+    if (peek(l) != '\'') {
+        String errString = {0};
+        joinCString(&errString, "Unterminated Char Literal!");
+        Token token = makeErrorToken(errString, l->line, col);
+        addToken(l, token);
+        return;
+    }
+    advance(l); // Consume temrminating '
+
+    Token token = makeCharLiteralToken(c, l->line, col);
+    addToken(l, token);
+    return;
+}
+
+#define ADD_SIMPLE(type) addSimpleToken(&lexer, type)
+
 /**********************************************************************************************************************
  * Public Lexer API
  *********************************************************************************************************************/
@@ -187,6 +226,26 @@ ErrCode scanFile(TokensList *dest, cstr path) {
     while (!isAtEnd(&lexer)) {
         u8 c = advance(&lexer);
 
+        if (isalpha(c) || c == '_') {
+            makeIdentifier(&lexer);
+            continue;
+        }
+
+        if (isdigit(c) || (c == '.' && isdigit(peek(&lexer)))) {
+            makeNumber(&lexer);
+            continue;
+        }
+
+        if (c == '\"') {
+            makeString(&lexer);
+            continue;
+        }
+
+        if (c == '\'') {
+            makeChar(&lexer);
+            continue;
+        }
+
         switch (c) {
         case '\n':
             lexer.line++;
@@ -198,126 +257,126 @@ ErrCode scanFile(TokensList *dest, cstr path) {
         // TOK_EQUALS,
         // TOK_EQUAL_EQUALS,
         case '=':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_EQUAL_EQUALS);
-            else addSimpleToken(&lexer, TOK_EQUALS);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_EQUALS_EQUALS);
+            else ADD_SIMPLE(TOK_EQUALS);
             break;
         // TOK_PLUS,
         // TOK_PLUS_PLUS,
         // TOK_PLUS_EQUALS,
         case '+':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_PLUS_EQUALS);
-            else if (match(&lexer, '+')) addSimpleToken(&lexer, TOK_PLUS_PLUS);
-            else addSimpleToken(&lexer, TOK_PLUS);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_PLUS_EQUALS);
+            else if (match(&lexer, '+')) ADD_SIMPLE(TOK_PLUS_PLUS);
+            else ADD_SIMPLE(TOK_PLUS);
             break;
         // TOK_MINUS,
         // TOK_MINUS_MINUS,
         // TOK_MINUS_EQUALS,
         // TOK_MINUS_GREATER,
         case '-':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_MINUS_EQUALS);
-            else if (match(&lexer, '-')) addSimpleToken(&lexer, TOK_MINUS_MINUS);
-            else if (match(&lexer, '>')) addSimpleToken(&lexer, TOK_MINUS_GREATER);
-            else addSimpleToken(&lexer, TOK_MINUS);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_MINUS_EQUALS);
+            else if (match(&lexer, '-')) ADD_SIMPLE(TOK_MINUS_MINUS);
+            else if (match(&lexer, '>')) ADD_SIMPLE(TOK_MINUS_GREATER);
+            else ADD_SIMPLE(TOK_MINUS);
             break;
         // TOK_STAR,
         // TOK_STAR_EQUALS,
         case '*':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_STAR_EQUALS);
-            else addSimpleToken(&lexer, TOK_STAR);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_STAR_EQUALS);
+            else ADD_SIMPLE(TOK_STAR);
             break;
         // TOK_SLASH,
         // TOK_SLASH_EQUALS,
         case '/':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_SLASH_EQUALS);
-            else addSimpleToken(&lexer, TOK_SLASH);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_SLASH_EQUALS);
+            else ADD_SIMPLE(TOK_SLASH);
             break;
         // TOK_PERCENT,
         // TOK_PERCENT_EQUALS,
         case '%':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_PERCENT_EQUALS);
-            else addSimpleToken(&lexer, TOK_PERCENT);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_PERCENT_EQUALS);
+            else ADD_SIMPLE(TOK_PERCENT);
             break;
         // TOK_BANG,
         // TOK_BANG_EQUALS,
         case '!':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_BANG_EQUALS);
-            else addSimpleToken(&lexer, TOK_BANG);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_BANG_EQUALS);
+            else ADD_SIMPLE(TOK_BANG);
             break;
         // TOK_LESS,
         // TOK_LESS_EQUALS,
         // TOK_LESS_LESS,
         // TOK_LESS_LESS_EQUALS,
         case '<':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_LESS_EQUALS);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_LESS_EQUALS);
             else if (match(&lexer, '<')) {
-                if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_LESS_LESS_EQUALS);
-                else addSimpleToken(&lexer, TOK_LESS_LESS);
-            } else addSimpleToken(&lexer, TOK_LESS);
+                if (match(&lexer, '=')) ADD_SIMPLE(TOK_LESS_LESS_EQUALS);
+                else ADD_SIMPLE(TOK_LESS_LESS);
+            } else ADD_SIMPLE(TOK_LESS);
             break;
         // TOK_GREATER,
         // TOK_GREATER_EQUALS,
         // TOK_GREATER_GREATER,
         // TOK_GREATER_GREATER_EQUALS,
         case '>':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_GREATER_EQUALS);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_GREATER_EQUALS);
             else if (match(&lexer, '>')) {
-                if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_GREATER_GREATER_EQUALS);
-                else addSimpleToken(&lexer, TOK_GREATER_GREATER);
-            } else addSimpleToken(&lexer, TOK_GREATER);
+                if (match(&lexer, '=')) ADD_SIMPLE(TOK_GREATER_GREATER_EQUALS);
+                else ADD_SIMPLE(TOK_GREATER_GREATER);
+            } else ADD_SIMPLE(TOK_GREATER);
             break;
         // TOK_AMPERSAND,
         // TOK_AMPERSAND_AMPERSAND,
         // TOK_AMPERSAND_EQUALS,
         case '&':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_AMPERSAND_EQUALS);
-            else if (match(&lexer, '&')) addSimpleToken(&lexer, TOK_AMPERSAND_AMPERSAND);
-            else addSimpleToken(&lexer, TOK_AMPERSAND);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_AMPERSAND_EQUALS);
+            else if (match(&lexer, '&')) ADD_SIMPLE(TOK_AMPERSAND_AMPERSAND);
+            else ADD_SIMPLE(TOK_AMPERSAND);
             break;
         // TOK_PIPE,
         // TOK_PIPE_PIPE,
         // TOK_PIPE_EQUALS,
         case '|':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_PIPE_EQUALS);
-            else if (match(&lexer, '|')) addSimpleToken(&lexer, TOK_PIPE_PIPE);
-            else addSimpleToken(&lexer, TOK_PIPE);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_PIPE_EQUALS);
+            else if (match(&lexer, '|')) ADD_SIMPLE(TOK_PIPE_PIPE);
+            else ADD_SIMPLE(TOK_PIPE);
             break;
         // TOK_CARET,
         // TOK_CARET_EQUALS,
         case '^':
-            if (match(&lexer, '=')) addSimpleToken(&lexer, TOK_CARET_EQUALS);
-            else addSimpleToken(&lexer, TOK_CARET);
+            if (match(&lexer, '=')) ADD_SIMPLE(TOK_CARET_EQUALS);
+            else ADD_SIMPLE(TOK_CARET);
             break;
         // TOK_TILDE,
         case '~':
-            addSimpleToken(&lexer, TOK_TILDE);
+            ADD_SIMPLE(TOK_TILDE);
             break;
         // TOK_LEFT_PAREN,
         case '(':
-            addSimpleToken(&lexer, TOK_LEFT_PAREN);
+            ADD_SIMPLE(TOK_LEFT_PAREN);
             break;
         // TOK_RIGHT_PAREN,
         case ')':
-            addSimpleToken(&lexer, TOK_RIGHT_PAREN);
+            ADD_SIMPLE(TOK_RIGHT_PAREN);
             break;
         // TOK_LEFT_BRACE,
         case '{':
-            addSimpleToken(&lexer, TOK_LEFT_BRACE);
+            ADD_SIMPLE(TOK_LEFT_BRACE);
             break;
         // TOK_RIGHT_BRACE,
         case '}':
-            addSimpleToken(&lexer, TOK_RIGHT_BRACE);
+            ADD_SIMPLE(TOK_RIGHT_BRACE);
             break;
         // TOK_LEFT_BRACKET,
         case '[':
-            addSimpleToken(&lexer, TOK_LEFT_BRACKET);
+            ADD_SIMPLE(TOK_LEFT_BRACKET);
             break;
         // TOK_RIGHT_BRACKET,
         case ']':
-            addSimpleToken(&lexer, TOK_RIGHT_BRACKET);
+            ADD_SIMPLE(TOK_RIGHT_BRACKET);
             break;
         // TOK_COMMA,
         case ',':
-            addSimpleToken(&lexer, TOK_COMMA);
+            ADD_SIMPLE(TOK_COMMA);
             break;
         // TOK_DOT,
         // TOK_ELLIPSIS,
@@ -325,30 +384,31 @@ ErrCode scanFile(TokensList *dest, cstr path) {
             if (peek(&lexer) == '.' && peekAhead(&lexer, 1) == '.') {
                 advance(&lexer);
                 advance(&lexer);
-                addSimpleToken(&lexer, TOK_ELLIPSIS);
+                ADD_SIMPLE(TOK_ELLIPSIS);
             }
-            else addSimpleToken(&lexer, TOK_DOT);
+            else ADD_SIMPLE(TOK_DOT);
             break;
         // TOK_SEMICOLON,
         case ';':
-            addSimpleToken(&lexer, TOK_SEMICOLON);
+            ADD_SIMPLE(TOK_SEMICOLON);
             break;
         // TOK_COLON,
         // TOK_COLON_COLON,
         case ':':
-            addSimpleToken(&lexer, TOK_COLON_COLON);
+            if (match(&lexer, ':')) ADD_SIMPLE(TOK_COLON_COLON);
+            else ADD_SIMPLE(TOK_COLON);
             break;
         // TOK_QUESTION_MARK,
         case '?':
-            addSimpleToken(&lexer, TOK_QUESTION_MARK);
+            ADD_SIMPLE(TOK_QUESTION_MARK);
             break;
         // TOK_AT
         case '@':
-            addSimpleToken(&lexer, TOK_AT);
+            ADD_SIMPLE(TOK_AT);
             break;
 
         case '\0':
-            addSimpleToken(&lexer, TOK_EOF);
+            ADD_SIMPLE(TOK_EOF);
             break;
 
         default:
@@ -358,7 +418,7 @@ ErrCode scanFile(TokensList *dest, cstr path) {
     }
 
     free(lexer.input.arr);
-    return NO_ERR;
+    return lexer.hasErros ? LEXING_ERR : NO_ERR;
 }
 
 void freeTokensList(TokensList *tokens) {
@@ -379,30 +439,4 @@ void freeTokensList(TokensList *tokens) {
     tokens->arr = NULL;
     tokens->len = 0;
     tokens->cap = 0;
-}
-
-void printToken(Token token) {
-    printf("[%lu:%lu = %s]", token.line, token.col, tokenTypesStrings[token.type]);
-    switch (token.type) {
-    case TOK_IDENTIFIER:
-        printf(": (%.*s)\n", (int)token.as.identifier.len, token.as.identifier.arr);
-        return;
-    case TOK_STRING_LITERAL:
-        printf(": (%.*s)\n", (int)token.as.stringLiteral.len, token.as.stringLiteral.arr);
-        return;
-    case TOK_INTEGER_LITERAL:
-        printf(": (%lu)\n", token.as.integerLiteral);
-        return;
-    case TOK_FLOAT_LITERAL:
-        printf(": (%f)\n", token.as.floatLiteral);
-        return;
-    case TOK_UNKNOWN:
-        printf(": (\\x%02d)", token.as.unknown);
-        if (' ' <= token.as.unknown && token.as.unknown <= '~') printf(" : \'%c\'\n", token.as.unknown);
-        else printf("\n");
-        break;
-    default:
-        printf("\n");
-        return;
-    }
 }

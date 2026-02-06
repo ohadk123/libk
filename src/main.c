@@ -6,15 +6,11 @@
 int printString(String *s) { return printf("%.*s\n", (int)s->len, s->arr); }
 
 int main(int argc, char *argv[]) {
-    assert(argc == 2 && "Usage: lexer <source-file>");
+    assert(argc == 2 && "Usage: main <input>");
     TokensList tokens = {0};
     ErrCode err = scanFile(&tokens, argv[1]);
-    printf("err = %d\n", err);
     for (usize i = 0; i < tokens.len; i++) {
-        Token *token = &tokens.arr[i];
-        printToken(*token);
+        printToken(tokens.arr[i]);
     }
-
-    freeTokensList(&tokens);
     return err;
 }

@@ -5,16 +5,19 @@ typedef enum {
     UNCATEGORIZED_ERR = -1,
     NO_ERR = 0,
 
-    // General Errors
+    // Pointer Errors
     ALLOC_ERR,
     NULLPTR_ERR,
     OUT_OF_BOUNDS_ERR,
 
-    // FileControl.h
+    // File Errors
     OPEN_FILE_ERR,
     SEEK_FILE_ERR,
     READ_FILE_ERR,
-    FILE_TOO_BIG_ERR
+    FILE_TOO_BIG_ERR,
+
+    // Lexer Errors
+    LEXING_ERR,
 } ErrCode;
 
 #define RETURN(res)   \
