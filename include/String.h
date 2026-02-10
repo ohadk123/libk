@@ -2,8 +2,8 @@
 #define INCLUDE_STRING_H_
 
 #include "Errors.h"
-#include "Types.h"
 #include "List.h"
+#include "Types.h"
 
 typedef struct {
     LIST_FIELDS(u8);
@@ -15,6 +15,9 @@ ErrCode joinCString(String *dest, cstr src);
 ErrCode joinCStringN(String *dest, cstr src, usize max);
 ErrCode joinString(String *dest, String *src);
 ErrCode joinStringSlice(String *dest, String *src, usize start, usize end);
-ErrCode joinEntireFile(String *dest, cstr path);
+ErrCode joinEntireFile(String *dest, String path);
 
-#endif  // INCLUDE_STRING_H_
+Bool compareStrings(String *a, String *b);
+Bool compareCString(String *a, cstr b);
+
+#endif // INCLUDE_STRING_H_

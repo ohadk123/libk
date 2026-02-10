@@ -46,11 +46,11 @@ ErrCode joinStringSlice(String *dest, String *src, usize start, usize end) {
     return joinBytes(dest, &src->arr[start], end - start);
 }
 
-ErrCode joinEntireFile(String *dest, cstr path) {
-    if (dest == NULL || path == NULL) return NULLPTR_ERR;
+ErrCode joinEntireFile(String *dest, String path) {
+    if (dest == NULL || path.arr == NULL) return NULLPTR_ERR;
     ErrCode result = NO_ERR;
 
-    FILE *fp = fopen(path, "r");
+    FILE *fp = fopen((cstr) path.arr, "r");
     if (fp == NULL) return OPEN_FILE_ERR;
 
     if (fseek(fp, 0, SEEK_SET) != 0) RETURN(SEEK_FILE_ERR);
@@ -72,4 +72,15 @@ ErrCode joinEntireFile(String *dest, cstr path) {
 defer:
     fclose(fp);
     return result;
+}
+
+Bool compareStrings(String *a, String *b) {
+    if (a->len != b->len) return FALSE;
+    return strncmp((cstr) a->arr, (cstr) b->arr, a->len) == 0;
+}
+
+Bool compareCString(String *a, cstr b) {
+    usize blen = strlen(b);
+    if (a->len != blen) return FALSE;
+    return strncmp((cstr) a->arr, b, a->len) == 0;
 }

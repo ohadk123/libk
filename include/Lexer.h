@@ -1,9 +1,9 @@
 #ifndef INCLUDE_INCLUDE_LEXER_H_
 #define INCLUDE_INCLUDE_LEXER_H_
 
-#include "private/Token.h"
+#include "Token.h"
 
-ErrCode scanFile(TokensList *dest, cstr path);
+ErrCode scanFile(TokensList *dest, String path);
 void freeTokensList(TokensList *tokens);
 void printToken(Token token);
 
