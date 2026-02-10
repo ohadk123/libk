@@ -28,6 +28,7 @@ install: compile
 	sudo mkdir -p /usr/local/include/libk
 	sudo cp $(BUILD_DIR)/libk.so /usr/local/lib/libk.so
 	sudo cp ./include/* /usr/local/include/libk/
+	echo "Library installed successfully. You may need to run 'sudo ldconfig' to update the linker cache."
 
 uninstall:
 	sudo rm -f /usr/local/lib/libk.so
