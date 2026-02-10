@@ -1,16 +1,22 @@
-#ifndef INCLUDE_LIST_LIST_H_
-#define INCLUDE_LIST_LIST_H_
+#ifndef INCLUDE_LIBK_LIST_H_
+#define INCLUDE_LIBK_LIST_H_
 
-#include <stddef.h>
+#include "Types.h"
+#include <stdlib.h>
 
 #define LIST_FIELDS(type)                                                                                              \
     type *arr;                                                                                                         \
-    size_t cap;                                                                                                        \
-    size_t len
+    usize cap;                                                                                                        \
+    usize len
 
 #define MIN_CAP 8
 
-#define LIST_appendSingle(l, e)                                                                                        \
+/**
+ * Appends a single element to the end of the list.
+ * @param l The list to append to.
+ * @param e The element to append.
+ */
+#define appendSingle(l, e)                                                                                        \
     do {                                                                                                               \
         if ((l)->len >= (l)->cap) {                                                                                    \
             (l)->cap = (l)->cap < MIN_CAP ? MIN_CAP : (l)->cap * 2;                                                    \
@@ -19,7 +25,13 @@
         (l)->arr[(l)->len++] = e;                                                                                      \
     } while (0)
 
-#define LIST_appendArr(l, a, ac)                                                                                       \
+/**
+ * Appends multiple elements to the end of the list.
+ * @param l The list to append to.
+ * @param a The array of elements to append.
+ * @param ac The number of elements to append.
+ */
+#define appendArr(l, a, ac)                                                                                       \
     do {                                                                                                               \
         if ((l)->cap < MIN_CAP) (l)->cap = MIN_CAP;                                                                    \
         while ((l)->len + (ac) >= (l)->cap) (l)->cap *= 2;                                                             \
@@ -28,6 +40,11 @@
         (l)->len += (ac);                                                                                              \
     } while (0)
 
-#define LIST_joinLists(d, s) LIST_appendArr(d, (s)->arr, (s)->len)
+/**
+ * Joins two lists together by appending all elements from the source list to the destination list.
+ * @param d The destination list.
+ * @param s The source list.
+ */
+#define joinLists(d, s) LIST_appendArr(d, (s)->arr, (s)->len)
 
-#endif // INCLUDE_LIST_LIST_H_
+#endif // INCLUDE_LIBK_LIST_H_

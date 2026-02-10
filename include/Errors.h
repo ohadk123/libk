@@ -18,11 +18,15 @@ typedef enum {
     SEEK_FILE_ERR,
     READ_FILE_ERR,
     FILE_TOO_BIG_ERR,
-
-    // Lexer Errors
-    LEXING_ERR,
 } ErrCode;
 
+/**
+ * A macro to handle returning from a function with a single exit point.
+ * 'ErrCode result' variable must be defined before using this macro.
+ * 'defer' label must be defined before the return statement.
+ * It sets the 'result' variable to the provided value and jumps to the 'defer' label.
+ * @param res The value to set 'result' to before returning.
+ */
 #define RETURN(res)                                                                                                    \
     do {                                                                                                               \
         result = res;                                                                                                  \

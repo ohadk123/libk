@@ -1,23 +1,27 @@
-#ifndef INCLUDE_STRING_H_
-#define INCLUDE_STRING_H_
+#ifndef INCLUDE_LIBK_STRING_H_
+#define INCLUDE_LIBK_STRING_H_
 
-#include "Errors.h"
-#include "List.h"
 #include "Types.h"
 
 typedef struct {
-    LIST_FIELDS(u8);
+    u8 *data;
+    usize len;
 } String;
 
-ErrCode joinByte(String *dest, u8 byte);
-ErrCode joinBytes(String *dest, const u8 *src, usize count);
-ErrCode joinCString(String *dest, cstr src);
-ErrCode joinCStringN(String *dest, cstr src, usize max);
-ErrCode joinString(String *dest, String *src);
-ErrCode joinStringSlice(String *dest, String *src, usize start, usize end);
-ErrCode joinEntireFile(String *dest, String path);
-
+/**
+ * Compares two Strings for equality.
+ * @param a The first String.
+ * @param b The second String.
+ * @return TRUE if the Strings are equal, FALSE otherwise.
+ */
 Bool compareStrings(String *a, String *b);
+
+/**
+ * Compares a String with a null-terminated C string for equality.
+ * @param a The String.
+ * @param b The C string.
+ * @return TRUE if they are equal, FALSE otherwise.
+ */
 Bool compareCString(String *a, cstr b);
 
-#endif // INCLUDE_STRING_H_
+#endif // INCLUDE_LIBK_STRING_H_
