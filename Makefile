@@ -30,5 +30,5 @@ install: compile
 	sudo cp ./include/* /usr/local/include/libk/
 
 uninstall:
-	rm -f /usr/local/lib/libk.so
-	rm -rf /usr/local/include/libk
+	sudo rm -f /usr/local/lib/libk.so
+	sudo rm -rf /usr/local/include/libk
