@@ -1,8 +1,8 @@
 #ifndef INCLUDE_LIBK_ERRORS_H_
 #define INCLUDE_LIBK_ERRORS_H_
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 typedef enum {
     UNCATEGORIZED_ERR = -1,
@@ -33,23 +33,29 @@ typedef enum {
         goto defer;                                                                                                    \
     } while (0);
 
-#define TODO(message)                                                                                                  \
+#define TODO(fmt, ...)                                                                                                 \
     do {                                                                                                               \
-        fprintf(stderr, "%s:%d: TODO: %s\n", __FILE__, __LINE__, message);                                             \
+        fprintf(stderr, "%s:%d: TODO: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__);                                  \
         abort();                                                                                                       \
     } while (0)
 
-#define ILLEGAL(cond, cause)                                                                                           \
+#define ILLEGAL(cond, fmt, ...)                                                                                        \
     do {                                                                                                               \
         if (cond) {                                                                                                    \
-            fprintf(stderr, "Illegal use of function %s: %s\n", __func__, cause);                                      \
+            fprintf(stderr, "Illegal use of function %s: " fmt "\n", __func__, ##__VA_ARGS__);                         \
             abort();                                                                                                   \
         }                                                                                                              \
     } while (0)
 
-#define UNIMPLEMENTED(message)                                                                                         \
+#define UNIMPLEMENTED(fmt, ...)                                                                                        \
     do {                                                                                                               \
-        fprintf(stderr, "%s:%d: unimplemented: %s\n", __FILE__, __LINE__, message);                                    \
+        fprintf(stderr, "%s:%d: unimplemented: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__);                         \
+        abort();                                                                                                       \
+    } while (0)
+
+#define UNREACHABLE(fmt, ...)                                                                                          \
+    do {                                                                                                               \
+        fprintf(stderr, "%s:%d: unreachable: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__);                           \
         abort();                                                                                                       \
     } while (0)
 
