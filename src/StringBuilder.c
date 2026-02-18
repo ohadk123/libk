@@ -69,7 +69,7 @@ defer:
 String moveToString(StringBuilder *src) {
     joinByte(src, '\0');
 
-    String result = {.data = src->arr, .len = src->len};
+    String result = {.data = src->arr, .len = src->len - 1};
     src->arr = NULL;
     src->len = 0;
     src->cap = 0;
