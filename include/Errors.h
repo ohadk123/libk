@@ -1,6 +1,7 @@
 #ifndef INCLUDE_LIBK_ERRORS_H_
 #define INCLUDE_LIBK_ERRORS_H_
 
+#include <execinfo.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -58,5 +59,19 @@ typedef enum {
         fprintf(stderr, "%s:%d: unreachable: " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__);                           \
         abort();                                                                                                       \
     } while (0)
+
+#define BT_SIZE 200
+#define BACKTRACE()                                                                                                    \
+    do {                                                                                                               \
+        void *__bt_array[BT_SIZE];                                                                                     \
+        size_t __bt_size;                                                                                              \
+        __bt_size = backtrace(__bt_array, BT_SIZE);                                                                    \
+        char **__bt__strings = backtrace_symbols(__bt_array, __bt_size);                                               \
+        printf("Backtrace (%zd frames):\n", __bt_size);                                                                    \
+        for (size_t i = 0; i < __bt_size; i++) {                                                                       \
+            printf("%s\n", __bt__strings[i]);                                                                              \
+        }                                                                                                              \
+        free(__bt__strings);                                                                                           \
+    } while (0);
 
 #endif // INCLUDE_LIBK_ERRORS_H_
